@@ -1,0 +1,65 @@
+from langchain.llms import OpenAI
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
+from langchain.chains.question_answering import load_qa_chain
+from PyPDF2 import PdfReader
+import tkinter as tk
+from tkinter import filedialog
+from apikey import apikey
+import os
+
+# Initialize Tkinter
+root = tk.Tk()
+root.title('PDF Question and Answer App')
+
+os.environ["OPENAI_API_KEY"] = apikey
+
+llm = OpenAI(temperature=0)  # Temp controls the randomness of the text
+
+def upload_pdf():
+    file_path = filedialog.askopenfilename(filetypes=[('PDF files', '*.pdf')])
+    if file_path:
+        pdf_reader = PdfReader(file_path)
+        texts = ""
+        for page in pdf_reader.pages:
+            texts += page.extract_text()
+        
+        # Split text
+        text_splitter = CharacterTextSplitter(chunk_size=1000, separator="\n", chunk_overlap=0)
+        
+        # Add all texts into a smaller chunks
+        chunks = text_splitter.split_text(texts)
+        
+        # Create embeddings for chunks
+        embeddings = OpenAIEmbeddings(openai_api_key=apikey)
+        doc_search = FAISS.from_texts(chunks, embeddings)
+        
+        def execute_query():
+            query = query_entry.get()
+            if query:
+                # Code to search for similar documents and retrieve the answer
+                docs_new = doc_search.similarity_search(query)
+                llm = OpenAI(temperature=0)
+                chain = load_qa_chain(llm, chain_type="stuff")
+                answer = chain.run(input_documents=docs_new, question=query)
+                answer_text.configure(text="Answer:\n" + answer)
+        
+        query_label = tk.Label(root, text="Enter a query:")
+        query_label.pack()
+        
+        query_entry = tk.Entry(root, width=50, font=("Arial", 14))
+        query_entry.pack(pady=10)
+        
+        execute_button = tk.Button(root, text="Execute", command=execute_query)
+        execute_button.pack()
+        
+        answer_text = tk.Label(root, text="", font=("Arial", 16), wraplength=600, justify="left")
+        answer_text.pack(pady=20)
+    
+browse_button = tk.Button(root, text="Upload your PDF", command=upload_pdf)
+browse_button.pack(pady=20)
+
+# Start the Tkinter event loop
+root.mainloop()
+
